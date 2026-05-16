@@ -25,8 +25,8 @@ const MIN_RIDE_MINUTES = {
 };
 
 const STOP_ALIASES = {
-  beaumount: ["峻瀅", "the beaumount", "wan po road"],
-  capitol: ["首都", "the capitol", "lohas park"],
+  beaumount: ["峻瀅", "the beaumount"],
+  capitol: ["日出康城首都", "首都", "the capitol"],
   hungFuk: ["鴻福街", "hung fook street", "hung fuk street"],
   hkPost: ["香港郵政大樓", "hongkong post", "hong kong post"],
   kaiFukTunnel: ["啟福隧道轉車站", "啟隧轉車站", "啟福道", "kai tak tunnel bbi", "kai fuk road"],

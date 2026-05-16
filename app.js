@@ -27,8 +27,8 @@ const MIN_RIDE_MINUTES = {
 };
 
 const STOP_ALIASES = {
-  beaumount: ["峻瀅", "the beaumount", "wan po road"],
-  capitol: ["首都", "the capitol", "lohas park"],
+  beaumount: ["峻瀅", "the beaumount"],
+  capitol: ["日出康城首都", "首都", "the capitol"],
   hungFuk: ["鴻福街", "hung fook street", "hung fuk street"],
   hkPost: ["香港郵政大樓", "hongkong post", "hong kong post"],
   kaiFukTunnel: ["啟福隧道轉車站", "啟隧轉車站", "啟福道", "kai tak tunnel bbi", "kai fuk road"],
@@ -96,6 +96,7 @@ const COMMUTES = {
 const cache = new Map();
 let rideDefaults = {};
 let activeMode = "work";
+let activeStop = "all";
 let refreshSeq = 0;
 
 const $ = (selector) => document.querySelector(selector);
@@ -109,12 +110,22 @@ document.querySelectorAll(".mode-button").forEach((button) => {
   });
 });
 
+document.querySelectorAll(".stop-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeStop = button.dataset.stop;
+    document.querySelectorAll(".stop-button").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    refresh();
+  });
+});
+
 $("#refreshBtn").addEventListener("click", refresh);
 loadRideDefaults().finally(refresh);
 
 async function refresh() {
   const seq = ++refreshSeq;
   const mode = activeMode;
+  const stop = activeStop;
   const refreshBtn = $("#refreshBtn");
   refreshBtn.disabled = true;
   refreshBtn.textContent = "更新中";
@@ -124,7 +135,7 @@ async function refresh() {
 
   try {
     const results = await Promise.all(
-      COMMUTES[mode].plans.map((plan) =>
+      getVisiblePlans(mode, stop).map((plan) =>
         evaluatePlan(plan).catch((error) => ({
           ...plan,
           arrival: null,
@@ -133,7 +144,7 @@ async function refresh() {
         })),
       ),
     );
-    if (seq !== refreshSeq || mode !== activeMode) return;
+    if (seq !== refreshSeq || mode !== activeMode || stop !== activeStop) return;
     results.sort((a, b) => {
       if (a.arrival && b.arrival) return a.arrival - b.arrival;
       if (a.arrival) return -1;
@@ -142,13 +153,21 @@ async function refresh() {
     });
     renderResults(results);
   } catch (error) {
-    if (seq === refreshSeq && mode === activeMode) setSummary("讀取失敗", error.message);
+    if (seq === refreshSeq && mode === activeMode && stop === activeStop) setSummary("讀取失敗", error.message);
   } finally {
     if (seq === refreshSeq) {
       refreshBtn.disabled = false;
       refreshBtn.textContent = "更新";
     }
   }
+}
+
+function getVisiblePlans(mode, stop) {
+  if (stop === "all") return COMMUTES[mode].plans;
+  return COMMUTES[mode].plans.filter((plan) => {
+    if (mode === "work") return plan.legs[0].from === stop;
+    return plan.legs.at(-1).to === stop;
+  });
 }
 
 async function evaluatePlan(plan) {
