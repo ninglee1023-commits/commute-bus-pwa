@@ -26,6 +26,11 @@ const MIN_RIDE_MINUTES = {
   "11X:kwunTong:hungFuk": 9,
 };
 
+const ETA_PAIRING_MODE = {
+  "790:beaumount:hkPost": "headway",
+  "790:valleyRoad:capitol": "headway",
+};
+
 const STOP_ALIASES = {
   beaumount: ["峻瀅", "the beaumount"],
   capitol: ["日出康城首都", "首都", "the capitol"],
@@ -239,6 +244,10 @@ async function getLegCandidates(segment) {
     getEta(segment.company, segment.route, segment.direction, segment.toStop.id),
   ]);
 
+  if (ETA_PAIRING_MODE[segment.rideKey] === "headway") {
+    return getHeadwayCandidates(segment, fromEtas, toEtas);
+  }
+
   let toIndex = 0;
   return fromEtas
     .map((fromEta) => {
@@ -254,6 +263,26 @@ async function getLegCandidates(segment) {
         minRideMinutes: segment.minRideMinutes,
       };
     })
+    .filter(Boolean)
+    .sort((a, b) => a.boardTime - b.boardTime);
+}
+
+function getHeadwayCandidates(segment, fromEtas, toEtas) {
+  let toIndex = 0;
+  return fromEtas.map((fromEta) => {
+    while (toIndex < toEtas.length && toEtas[toIndex].time <= fromEta.time) toIndex += 1;
+    const toEta = toEtas[toIndex];
+    if (toEta) toIndex += 1;
+    if (!toEta) return null;
+    const rideMinutes = Math.round((toEta.time - fromEta.time) / 60000);
+    if (rideMinutes < 1 || rideMinutes > getMaxRideSampleMinutes(segment)) return null;
+    return {
+      etaSeq: fromEta.seq,
+      boardTime: fromEta.time,
+      arrivalTime: toEta.time,
+      minRideMinutes: segment.minRideMinutes,
+    };
+  })
     .filter(Boolean)
     .sort((a, b) => a.boardTime - b.boardTime);
 }
@@ -312,6 +341,8 @@ function recordRideSample(leg) {
 
 function getMaxRideSampleMinutes(leg) {
   const strictCaps = {
+    "790:beaumount:hkPost": 30,
+    "790:valleyRoad:capitol": 30,
     "98:tkoTunnel:beaumount": 16,
   };
   if (strictCaps[leg.rideKey]) return strictCaps[leg.rideKey];
