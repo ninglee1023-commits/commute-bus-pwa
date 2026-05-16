@@ -75,12 +75,7 @@ p {
   background: #fff;
 }
 
-.stop-controls {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.mode-button,
-.stop-button {
+.mode-button {
   height: 44px;
   border-radius: 6px;
   background: transparent;
@@ -88,8 +83,7 @@ p {
   cursor: pointer;
 }
 
-.mode-button.active,
-.stop-button.active {
+.mode-button.active {
   background: #17211d;
   color: #fff;
 }

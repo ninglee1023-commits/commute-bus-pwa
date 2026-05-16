@@ -96,7 +96,6 @@ const COMMUTES = {
 const cache = new Map();
 let rideDefaults = {};
 let activeMode = "work";
-let activeStop = "all";
 let refreshSeq = 0;
 
 const $ = (selector) => document.querySelector(selector);
@@ -110,22 +109,12 @@ document.querySelectorAll(".mode-button").forEach((button) => {
   });
 });
 
-document.querySelectorAll(".stop-button").forEach((button) => {
-  button.addEventListener("click", () => {
-    activeStop = button.dataset.stop;
-    document.querySelectorAll(".stop-button").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    refresh();
-  });
-});
-
 $("#refreshBtn").addEventListener("click", refresh);
 loadRideDefaults().finally(refresh);
 
 async function refresh() {
   const seq = ++refreshSeq;
   const mode = activeMode;
-  const stop = activeStop;
   const refreshBtn = $("#refreshBtn");
   refreshBtn.disabled = true;
   refreshBtn.textContent = "更新中";
@@ -135,7 +124,7 @@ async function refresh() {
 
   try {
     const results = await Promise.all(
-      getVisiblePlans(mode, stop).map((plan) =>
+      COMMUTES[mode].plans.map((plan) =>
         evaluatePlan(plan).catch((error) => ({
           ...plan,
           arrival: null,
@@ -144,7 +133,7 @@ async function refresh() {
         })),
       ),
     );
-    if (seq !== refreshSeq || mode !== activeMode || stop !== activeStop) return;
+    if (seq !== refreshSeq || mode !== activeMode) return;
     results.sort((a, b) => {
       if (a.arrival && b.arrival) return a.arrival - b.arrival;
       if (a.arrival) return -1;
@@ -153,21 +142,13 @@ async function refresh() {
     });
     renderResults(results);
   } catch (error) {
-    if (seq === refreshSeq && mode === activeMode && stop === activeStop) setSummary("讀取失敗", error.message);
+    if (seq === refreshSeq && mode === activeMode) setSummary("讀取失敗", error.message);
   } finally {
     if (seq === refreshSeq) {
       refreshBtn.disabled = false;
       refreshBtn.textContent = "更新";
     }
   }
-}
-
-function getVisiblePlans(mode, stop) {
-  if (stop === "all") return COMMUTES[mode].plans;
-  return COMMUTES[mode].plans.filter((plan) => {
-    if (mode === "work") return plan.legs[0].from === stop;
-    return plan.legs.at(-1).to === stop;
-  });
 }
 
 async function evaluatePlan(plan) {
