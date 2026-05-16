@@ -70,7 +70,6 @@ const COMMUTES = {
       { name: "98 轉 297P", legs: [{ route: "98", from: "capitol", to: "tkoTunnel" }, { route: "297P", from: "tkoTunnel", to: "hungFuk" }] },
       { name: "797 轉 297P", legs: [{ route: "797", from: "capitol", to: "tkoTunnel" }, { route: "297P", from: "tkoTunnel", to: "hungFuk" }] },
       { name: "98 轉 11X", legs: [{ route: "98", from: "capitol", to: "kwunTong" }, { route: "11X", from: "kwunTong", to: "hungFuk" }] },
-      { name: "11X 直達", legs: [{ route: "11X", from: "capitol", to: "hungFuk" }] },
     ],
   },
   home: {
