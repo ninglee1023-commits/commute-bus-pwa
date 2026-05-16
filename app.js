@@ -1,5 +1,7 @@
 const TRANSFER_BUFFER_MS = 2 * 60 * 1000;
 const DEFAULT_MIN_RIDE_MINUTES = 6;
+const FETCH_TIMEOUT_MS = 12000;
+const FETCH_RETRIES = 2;
 
 const MIN_RIDE_MINUTES = {
   "790:beaumount:hkPost": 20,
@@ -7,6 +9,8 @@ const MIN_RIDE_MINUTES = {
   "795X:valleyRoad:tkoTunnel": 9,
   "796P:valleyRoad:tkoTunnel": 8,
   "98D:valleyRoad:tkoTunnel": 8,
+  "296D:valleyRoad:tkoTunnel": 8,
+  "49:valleyRoad:tkoTunnel": 15,
   "98:capitol:tkoTunnel": 7,
   "98:capitol:kwunTong": 13,
   "98:tkoTunnel:beaumount": 10,
@@ -14,8 +18,6 @@ const MIN_RIDE_MINUTES = {
   "797:tkoTunnel:capitol": 8,
   "796X:tkoTunnel:hungFuk": 11,
   "297P:tkoTunnel:hungFuk": 9,
-  "296D:valleyRoad:tkoTunnel": 8,
-  "49:valleyRoad:tkoTunnel": 15,
   "11X:kaiFukTunnel:hungFuk": 6,
   "15X:kaiFukTunnel:hungFuk": 6,
   "11X:kwunTong:hungFuk": 9,
@@ -26,13 +28,7 @@ const STOP_ALIASES = {
   capitol: ["首都", "the capitol", "lohas park"],
   hungFuk: ["鴻福街", "hung fook street", "hung fuk street"],
   hkPost: ["香港郵政大樓", "hongkong post", "hong kong post"],
-  kaiFukTunnel: [
-    "啟福隧道轉車站",
-    "啟隧轉車站",
-    "啟福道",
-    "kai tak tunnel bbi",
-    "kai fuk road",
-  ],
+  kaiFukTunnel: ["啟福隧道轉車站", "啟隧轉車站", "啟福道", "kai tak tunnel bbi", "kai fuk road"],
   tkoTunnel: [
     "將軍澳隧道巴士轉乘站",
     "將軍澳隧道轉車站",
@@ -46,7 +42,6 @@ const STOP_ALIASES = {
     "kwun tong bbi-millennium city",
   ],
   valleyRoad: ["山谷道", "valley road"],
-  hungHomCorridor: ["山谷道", "紅磡南道", "機利士南路", "valley road", "hung hom south road", "gillies avenue south"],
 };
 
 const ROUTE_COMPANY = {
@@ -55,8 +50,8 @@ const ROUTE_COMPANY = {
   "796P": "ctb",
   "797": "ctb",
   "796X": "ctb",
-  "297P": "kmb",
   "296D": "kmb",
+  "297P": "kmb",
   "49": "kmb",
   "98": "kmb",
   "98D": "kmb",
@@ -68,144 +63,37 @@ const COMMUTES = {
   work: {
     title: "上班：峻瀅 / 首都 → 土瓜灣鴻福街",
     plans: [
-      {
-        name: "790 轉 11X",
-        legs: [
-          { route: "790", from: "beaumount", to: "hkPost" },
-          { route: "11X", from: "kaiFukTunnel", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "790 轉 15X",
-        legs: [
-          { route: "790", from: "beaumount", to: "hkPost" },
-          { route: "15X", from: "kaiFukTunnel", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "98 轉 796X",
-        legs: [
-          { route: "98", from: "capitol", to: "tkoTunnel" },
-          { route: "796X", from: "tkoTunnel", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "797 轉 796X",
-        legs: [
-          { route: "797", from: "capitol", to: "tkoTunnel" },
-          { route: "796X", from: "tkoTunnel", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "98 轉 297P",
-        legs: [
-          { route: "98", from: "capitol", to: "tkoTunnel" },
-          { route: "297P", from: "tkoTunnel", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "797 轉 297P",
-        legs: [
-          { route: "797", from: "capitol", to: "tkoTunnel" },
-          { route: "297P", from: "tkoTunnel", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "98 轉 11X",
-        legs: [
-          { route: "98", from: "capitol", to: "kwunTong" },
-          { route: "11X", from: "kwunTong", to: "hungFuk" },
-        ],
-      },
-      {
-        name: "11X 直達",
-        legs: [{ route: "11X", from: "capitol", to: "hungFuk" }],
-      },
+      { name: "790 轉 11X", legs: [{ route: "790", from: "beaumount", to: "hkPost" }, { route: "11X", from: "kaiFukTunnel", to: "hungFuk" }] },
+      { name: "790 轉 15X", legs: [{ route: "790", from: "beaumount", to: "hkPost" }, { route: "15X", from: "kaiFukTunnel", to: "hungFuk" }] },
+      { name: "98 轉 796X", legs: [{ route: "98", from: "capitol", to: "tkoTunnel" }, { route: "796X", from: "tkoTunnel", to: "hungFuk" }] },
+      { name: "797 轉 796X", legs: [{ route: "797", from: "capitol", to: "tkoTunnel" }, { route: "796X", from: "tkoTunnel", to: "hungFuk" }] },
+      { name: "98 轉 297P", legs: [{ route: "98", from: "capitol", to: "tkoTunnel" }, { route: "297P", from: "tkoTunnel", to: "hungFuk" }] },
+      { name: "797 轉 297P", legs: [{ route: "797", from: "capitol", to: "tkoTunnel" }, { route: "297P", from: "tkoTunnel", to: "hungFuk" }] },
+      { name: "98 轉 11X", legs: [{ route: "98", from: "capitol", to: "kwunTong" }, { route: "11X", from: "kwunTong", to: "hungFuk" }] },
+      { name: "11X 直達", legs: [{ route: "11X", from: "capitol", to: "hungFuk" }] },
     ],
   },
   home: {
     title: "下班：紅磡山谷道 → 峻瀅 / 首都",
     plans: [
-      {
-        name: "790 直達",
-        legs: [{ route: "790", from: "valleyRoad", to: "capitol" }],
-      },
-      {
-        name: "795X 轉 98",
-        legs: [
-          { route: "795X", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "98", from: "tkoTunnel", to: "beaumount" },
-        ],
-      },
-      {
-        name: "796P 轉 98",
-        legs: [
-          { route: "796P", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "98", from: "tkoTunnel", to: "beaumount" },
-        ],
-      },
-      {
-        name: "98D 轉 98",
-        legs: [
-          { route: "98D", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "98", from: "tkoTunnel", to: "beaumount" },
-        ],
-      },
-      {
-        name: "296D 轉 98",
-        legs: [
-          { route: "296D", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "98", from: "tkoTunnel", to: "beaumount" },
-        ],
-      },
-      {
-        name: "49 轉 98",
-        legs: [
-          { route: "49", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "98", from: "tkoTunnel", to: "beaumount" },
-        ],
-      },
-      {
-        name: "795X 轉 797",
-        legs: [
-          { route: "795X", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "797", from: "tkoTunnel", to: "capitol" },
-        ],
-      },
-      {
-        name: "796P 轉 797",
-        legs: [
-          { route: "796P", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "797", from: "tkoTunnel", to: "capitol" },
-        ],
-      },
-      {
-        name: "98D 轉 797",
-        legs: [
-          { route: "98D", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "797", from: "tkoTunnel", to: "capitol" },
-        ],
-      },
-      {
-        name: "296D 轉 797",
-        legs: [
-          { route: "296D", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "797", from: "tkoTunnel", to: "capitol" },
-        ],
-      },
-      {
-        name: "49 轉 797",
-        legs: [
-          { route: "49", from: "valleyRoad", to: "tkoTunnel" },
-          { route: "797", from: "tkoTunnel", to: "capitol" },
-        ],
-      },
+      { name: "790 直達", legs: [{ route: "790", from: "valleyRoad", to: "capitol" }] },
+      { name: "795X 轉 98", legs: [{ route: "795X", from: "valleyRoad", to: "tkoTunnel" }, { route: "98", from: "tkoTunnel", to: "beaumount" }] },
+      { name: "796P 轉 98", legs: [{ route: "796P", from: "valleyRoad", to: "tkoTunnel" }, { route: "98", from: "tkoTunnel", to: "beaumount" }] },
+      { name: "98D 轉 98", legs: [{ route: "98D", from: "valleyRoad", to: "tkoTunnel" }, { route: "98", from: "tkoTunnel", to: "beaumount" }] },
+      { name: "296D 轉 98", legs: [{ route: "296D", from: "valleyRoad", to: "tkoTunnel" }, { route: "98", from: "tkoTunnel", to: "beaumount" }] },
+      { name: "49 轉 98", legs: [{ route: "49", from: "valleyRoad", to: "tkoTunnel" }, { route: "98", from: "tkoTunnel", to: "beaumount" }] },
+      { name: "795X 轉 797", legs: [{ route: "795X", from: "valleyRoad", to: "tkoTunnel" }, { route: "797", from: "tkoTunnel", to: "capitol" }] },
+      { name: "796P 轉 797", legs: [{ route: "796P", from: "valleyRoad", to: "tkoTunnel" }, { route: "797", from: "tkoTunnel", to: "capitol" }] },
+      { name: "98D 轉 797", legs: [{ route: "98D", from: "valleyRoad", to: "tkoTunnel" }, { route: "797", from: "tkoTunnel", to: "capitol" }] },
+      { name: "296D 轉 797", legs: [{ route: "296D", from: "valleyRoad", to: "tkoTunnel" }, { route: "797", from: "tkoTunnel", to: "capitol" }] },
+      { name: "49 轉 797", legs: [{ route: "49", from: "valleyRoad", to: "tkoTunnel" }, { route: "797", from: "tkoTunnel", to: "capitol" }] },
     ],
   },
 };
 
 const cache = new Map();
 let activeMode = "work";
+let refreshSeq = 0;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -219,20 +107,21 @@ document.querySelectorAll(".mode-button").forEach((button) => {
 });
 
 $("#refreshBtn").addEventListener("click", refresh);
-
 refresh();
 
 async function refresh() {
+  const seq = ++refreshSeq;
+  const mode = activeMode;
   const refreshBtn = $("#refreshBtn");
   refreshBtn.disabled = true;
   refreshBtn.textContent = "更新中";
-  $("#subtitle").textContent = COMMUTES[activeMode].title;
-  setSummary("正在讀取實時 ETA...", "官方資料有時會略慢，請等一等。");
+  $("#subtitle").textContent = COMMUTES[mode].title;
+  setSummary("正在讀取實時 ETA...", "會自動重試短暫失敗的官方資料。");
   $("#results").innerHTML = "";
 
   try {
     const results = await Promise.all(
-      COMMUTES[activeMode].plans.map((plan) =>
+      COMMUTES[mode].plans.map((plan) =>
         evaluatePlan(plan).catch((error) => ({
           ...plan,
           arrival: null,
@@ -241,18 +130,21 @@ async function refresh() {
         })),
       ),
     );
-    const sorted = results.sort((a, b) => {
+    if (seq !== refreshSeq || mode !== activeMode) return;
+    results.sort((a, b) => {
       if (a.arrival && b.arrival) return a.arrival - b.arrival;
       if (a.arrival) return -1;
       if (b.arrival) return 1;
       return a.name.localeCompare(b.name);
     });
-    renderResults(sorted);
+    renderResults(results);
   } catch (error) {
-    setSummary("讀取失敗", error.message);
+    if (seq === refreshSeq && mode === activeMode) setSummary("讀取失敗", error.message);
   } finally {
-    refreshBtn.disabled = false;
-    refreshBtn.textContent = "更新";
+    if (seq === refreshSeq) {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = "更新";
+    }
   }
 }
 
@@ -269,7 +161,7 @@ async function evaluatePlan(plan) {
       return {
         ...plan,
         arrival: null,
-        error: `${leg.route} 沒有合適班次或下游 ETA`,
+        error: `${leg.route} 暫時沒有合適班次或下游 ETA`,
         legResults,
       };
     }
@@ -290,15 +182,14 @@ async function resolveSegment(leg) {
   const company = ROUTE_COMPANY[leg.route];
   if (!company) throw new Error(`未設定 ${leg.route} 的巴士公司`);
 
-  const directions = company === "kmb" ? ["outbound", "inbound"] : ["outbound", "inbound"];
   const variants = await Promise.all(
-    directions.map(async (direction) => {
+    ["outbound", "inbound"].map(async (direction) => {
       const stops = await getRouteStops(company, leg.route, direction);
       return findSegmentInStops(stops, leg.from, leg.to, direction);
     }),
   );
 
-  const segment = variants.find(Boolean);
+  const segment = variants.filter(Boolean).sort((a, b) => a.stopGap - b.stopGap)[0];
   if (!segment) {
     throw new Error(`${leg.route} 找不到 ${labelFor(leg.from)} → ${labelFor(leg.to)} 的站序`);
   }
@@ -312,14 +203,21 @@ async function resolveSegment(leg) {
 }
 
 function findSegmentInStops(stops, fromKey, toKey, direction) {
-  const fromIndex = stops.findIndex((stop) => matchesStop(stop, fromKey));
-  const toIndex = stops.findIndex((stop, index) => index > fromIndex && matchesStop(stop, toKey));
-  if (fromIndex < 0 || toIndex < 0) return null;
-  return {
-    direction,
-    fromStop: stops[fromIndex],
-    toStop: stops[toIndex],
-  };
+  const matches = [];
+  for (let fromIndex = 0; fromIndex < stops.length; fromIndex += 1) {
+    if (!matchesStop(stops[fromIndex], fromKey)) continue;
+    for (let toIndex = fromIndex + 1; toIndex < stops.length; toIndex += 1) {
+      if (!matchesStop(stops[toIndex], toKey)) continue;
+      matches.push({
+        direction,
+        fromStop: stops[fromIndex],
+        toStop: stops[toIndex],
+        stopGap: stops[toIndex].seq - stops[fromIndex].seq,
+      });
+      break;
+    }
+  }
+  return matches.sort((a, b) => a.stopGap - b.stopGap)[0] || null;
 }
 
 async function getLegCandidates(segment) {
@@ -328,12 +226,13 @@ async function getLegCandidates(segment) {
     getEta(segment.company, segment.route, segment.direction, segment.toStop.id),
   ]);
 
+  let toIndex = 0;
   return fromEtas
     .map((fromEta) => {
-      const earliestPlausibleArrival = new Date(
-        fromEta.time.getTime() + segment.minRideMinutes * 60 * 1000,
-      );
-      const toEta = toEtas.find((eta) => eta.time >= earliestPlausibleArrival);
+      const earliestPlausibleArrival = new Date(fromEta.time.getTime() + segment.minRideMinutes * 60 * 1000);
+      while (toIndex < toEtas.length && toEtas[toIndex].time < earliestPlausibleArrival) toIndex += 1;
+      const toEta = toEtas[toIndex];
+      if (toEta) toIndex += 1;
       if (!toEta) return null;
       return {
         etaSeq: fromEta.seq,
@@ -349,50 +248,58 @@ async function getLegCandidates(segment) {
 function getMinRideMinutes(leg, segment) {
   const key = `${leg.route}:${leg.from}:${leg.to}`;
   if (MIN_RIDE_MINUTES[key]) return MIN_RIDE_MINUTES[key];
-
-  const stopGap = Math.max(1, segment.toStop.seq - segment.fromStop.seq);
-  return Math.max(DEFAULT_MIN_RIDE_MINUTES, Math.ceil(stopGap * 1.5));
+  return Math.max(DEFAULT_MIN_RIDE_MINUTES, Math.ceil(segment.stopGap * 1.5));
 }
 
 async function getRouteStops(company, route, direction) {
   const key = `route-stops:${company}:${route}:${direction}`;
   if (cache.has(key)) return cache.get(key);
 
-  const rows =
-    company === "kmb"
-      ? await fetchJson(`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${direction}/1`)
-      : await fetchJson(`https://rt.data.gov.hk/v2/transport/citybus/route-stop/ctb/${route}/${direction}`);
+  const promise = (async () => {
+    const rows =
+      company === "kmb"
+        ? await fetchJson(`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${direction}/1`)
+        : await fetchJson(`https://rt.data.gov.hk/v2/transport/citybus/route-stop/ctb/${route}/${direction}`);
 
-  const routeStops = rows.data || [];
-  const stops = await Promise.all(
-    routeStops.map(async (row) => {
-      const stopId = row.stop || row.stop_id;
-      const stop = await getStop(company, stopId);
-      return { id: stopId, seq: Number(row.seq), ...stop };
-    }),
-  );
+    const stops = await Promise.all(
+      (rows.data || []).map(async (row) => {
+        const stopId = row.stop || row.stop_id;
+        const stop = await getStop(company, stopId);
+        return { id: stopId, seq: Number(row.seq), ...stop };
+      }),
+    );
+    return stops.sort((a, b) => a.seq - b.seq);
+  })().catch((error) => {
+    cache.delete(key);
+    throw error;
+  });
 
-  const sorted = stops.sort((a, b) => a.seq - b.seq);
-  cache.set(key, sorted);
-  return sorted;
+  cache.set(key, promise);
+  return promise;
 }
 
 async function getStop(company, stopId) {
   const key = `stop:${company}:${stopId}`;
   if (cache.has(key)) return cache.get(key);
 
-  const payload =
-    company === "kmb"
-      ? await fetchJson(`https://data.etabus.gov.hk/v1/transport/kmb/stop/${stopId}`)
-      : await fetchJson(`https://rt.data.gov.hk/v2/transport/citybus/stop/${stopId}`);
+  const promise = (async () => {
+    const payload =
+      company === "kmb"
+        ? await fetchJson(`https://data.etabus.gov.hk/v1/transport/kmb/stop/${stopId}`)
+        : await fetchJson(`https://rt.data.gov.hk/v2/transport/citybus/stop/${stopId}`);
 
-  const data = Array.isArray(payload.data) ? payload.data[0] : payload.data;
-  const stop = {
-    nameTc: data.name_tc || data.name_chi || "",
-    nameEn: data.name_en || "",
-  };
-  cache.set(key, stop);
-  return stop;
+    const data = Array.isArray(payload.data) ? payload.data[0] : payload.data;
+    return {
+      nameTc: data.name_tc || data.name_chi || "",
+      nameEn: data.name_en || "",
+    };
+  })().catch((error) => {
+    cache.delete(key);
+    throw error;
+  });
+
+  cache.set(key, promise);
+  return promise;
 }
 
 async function getEta(company, route, direction, stopId) {
@@ -402,6 +309,7 @@ async function getEta(company, route, direction, stopId) {
       ? await fetchJson(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${stopId}/${route}/1`)
       : await fetchJson(`https://rt.data.gov.hk/v2/transport/citybus/eta/ctb/${stopId}/${route}`);
 
+  const now = new Date();
   return (payload.data || [])
     .filter((row) => !row.dir || row.dir === apiDirection)
     .map((row) => ({
@@ -409,14 +317,34 @@ async function getEta(company, route, direction, stopId) {
       time: row.eta ? new Date(row.eta) : null,
       raw: row,
     }))
-    .filter((eta) => eta.time && eta.time > new Date())
+    .filter((eta) => eta.time && eta.time > now)
     .sort((a, b) => a.time - b.time);
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) throw new Error(`${response.status} ${url}`);
-  return response.json();
+async function fetchJson(url, attempt = 0) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const separator = url.includes("?") ? "&" : "?";
+    const response = await fetch(`${url}${separator}_=${Date.now()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`${response.status} ${url}`);
+    return response.json();
+  } catch (error) {
+    if (attempt < FETCH_RETRIES) {
+      await delay(400 * (attempt + 1));
+      return fetchJson(url, attempt + 1);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function matchesStop(stop, key) {
@@ -435,7 +363,7 @@ function labelFor(key) {
 function renderResults(results) {
   const valid = results.filter((result) => result.arrival);
   if (!valid.length) {
-    setSummary("暫時沒有可用路線", "可能是路線方向、站名配對或官方 ETA 暫時沒有資料。");
+    setSummary("暫時沒有可用路線", "可能是官方 ETA 暫時沒有資料，或所有轉乘都趕不上。");
   } else {
     const best = valid[0];
     setSummary(
@@ -443,7 +371,6 @@ function renderResults(results) {
       `約 ${minutesFromNow(best.arrival)} 分鐘後到達，${formatClock(best.depart)} 上車`,
     );
   }
-
   $("#results").innerHTML = results.map(renderCard).join("");
 }
 
