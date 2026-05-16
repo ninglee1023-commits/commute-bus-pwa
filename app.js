@@ -165,7 +165,12 @@ async function evaluatePlan(plan) {
       };
     }
 
-    legResults.push({ ...leg, ...segment, ...chosen });
+    const previousLeg = legResults.at(-1);
+    const transferWaitMinutes = previousLeg
+      ? Math.max(0, Math.round((chosen.boardTime - previousLeg.arrivalTime) / 60000))
+      : null;
+
+    legResults.push({ ...leg, ...segment, ...chosen, transferWaitMinutes });
     earliestBoardAfter = new Date(chosen.arrivalTime.getTime() + TRANSFER_BUFFER_MS);
   }
 
@@ -399,6 +404,10 @@ function renderCard(result, index) {
 
 function renderLeg(leg, index) {
   const transferText = index === 0 ? "" : "，已套用 +2 分鐘轉乘";
+  const waitText =
+    index === 0 || leg.transferWaitMinutes === null
+      ? ""
+      : `，轉乘等候 ${leg.transferWaitMinutes} 分鐘`;
   const rideText = leg.minRideMinutes ? `，最少 ${leg.minRideMinutes} 分鐘車程` : "";
   return `
     <div class="leg">
@@ -406,7 +415,7 @@ function renderLeg(leg, index) {
       <div>
         ${escapeHtml(leg.fromStop.nameTc)} → ${escapeHtml(leg.toStop.nameTc)}
         <br />
-        ${formatClock(leg.boardTime)} 上車，${formatClock(leg.arrivalTime)} 到${transferText}${rideText}
+        ${formatClock(leg.boardTime)} 上車，${formatClock(leg.arrivalTime)} 到${transferText}${waitText}${rideText}
       </div>
     </div>
   `;
