@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#176b54" />
+    <title>通勤巴士決策</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>通勤巴士決策</h1>
+          <p id="subtitle">比較固定上班/下班路線的實時 ETA</p>
+        </div>
+        <button id="refreshBtn" type="button">更新</button>
+      </header>
+
+      <section class="controls" aria-label="行程方向">
+        <button class="mode-button active" data-mode="work" type="button">上班</button>
+        <button class="mode-button" data-mode="home" type="button">下班</button>
+      </section>
+
+      <section class="summary" id="summary">
+        <div class="summary-main">正在讀取資料...</div>
+        <div class="summary-meta">首次載入可能需要數秒配對車站。</div>
+      </section>
+
+      <section class="results" id="results" aria-live="polite"></section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js");
+      }
+    </script>
+  </body>
+</html>
