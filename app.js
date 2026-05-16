@@ -2,6 +2,9 @@ const TRANSFER_BUFFER_MS = 2 * 60 * 1000;
 const DEFAULT_MIN_RIDE_MINUTES = 6;
 const FETCH_TIMEOUT_MS = 12000;
 const FETCH_RETRIES = 2;
+const RIDE_HISTORY_KEY = "commute-bus-ride-history-v1";
+const MAX_RIDE_SAMPLES = 30;
+const MIN_LEARNED_SAMPLES = 5;
 
 const MIN_RIDE_MINUTES = {
   "790:beaumount:hkPost": 20,
@@ -170,7 +173,9 @@ async function evaluatePlan(plan) {
       ? Math.max(0, Math.round((chosen.boardTime - previousLeg.arrivalTime) / 60000))
       : null;
 
-    legResults.push({ ...leg, ...segment, ...chosen, transferWaitMinutes });
+    const completedLeg = { ...leg, ...segment, ...chosen, transferWaitMinutes };
+    legResults.push(completedLeg);
+    recordRideSample(completedLeg);
     earliestBoardAfter = new Date(chosen.arrivalTime.getTime() + TRANSFER_BUFFER_MS);
   }
 
@@ -202,7 +207,10 @@ async function resolveSegment(leg) {
     ...segment,
     company,
     route: leg.route,
-    minRideMinutes: getMinRideMinutes(leg, segment),
+    rideKey: getRideKey(leg),
+    baseMinRideMinutes: getBaseMinRideMinutes(leg, segment),
+    learnedRideMinutes: getLearnedRideMinutes(getRideKey(leg)),
+    minRideMinutes: getGuardRideMinutes(leg, segment),
   };
 }
 
@@ -249,10 +257,79 @@ async function getLegCandidates(segment) {
     .sort((a, b) => a.boardTime - b.boardTime);
 }
 
-function getMinRideMinutes(leg, segment) {
+function getRideKey(leg) {
+  return `${leg.route}:${leg.from}:${leg.to}`;
+}
+
+function getBaseMinRideMinutes(leg, segment) {
   const key = `${leg.route}:${leg.from}:${leg.to}`;
   if (MIN_RIDE_MINUTES[key]) return MIN_RIDE_MINUTES[key];
   return Math.max(DEFAULT_MIN_RIDE_MINUTES, Math.ceil(segment.stopGap * 1.5));
+}
+
+function getGuardRideMinutes(leg, segment) {
+  const learned = getLearnedRideStats(getRideKey(leg));
+  if (learned.count >= MIN_LEARNED_SAMPLES) return Math.max(3, Math.floor(learned.low - 1));
+  return getBaseMinRideMinutes(leg, segment);
+}
+
+function getLearnedRideMinutes(key) {
+  const learned = getLearnedRideStats(key);
+  return learned.count >= MIN_LEARNED_SAMPLES ? Math.round(learned.median) : null;
+}
+
+function getLearnedRideStats(key) {
+  const samples = (getRideHistory()[key] || []).map((sample) =>
+    typeof sample === "number" ? sample : sample.minutes,
+  );
+  const validSamples = samples.filter((sample) => Number.isFinite(sample));
+  if (!validSamples.length) return { count: 0, low: null, median: null };
+  const sorted = [...validSamples].sort((a, b) => a - b);
+  return {
+    count: sorted.length,
+    low: percentile(sorted, 0.25),
+    median: percentile(sorted, 0.5),
+  };
+}
+
+function recordRideSample(leg) {
+  const actualMinutes = Math.round((leg.arrivalTime - leg.boardTime) / 60000);
+  if (!Number.isFinite(actualMinutes)) return;
+  if (actualMinutes < Math.max(3, leg.baseMinRideMinutes - 3)) return;
+  if (actualMinutes > Math.max(60, leg.baseMinRideMinutes * 4)) return;
+
+  const history = getRideHistory();
+  const samples = history[leg.rideKey] || [];
+  const sampleId = `${leg.boardTime.toISOString()}|${leg.arrivalTime.toISOString()}`;
+  if (samples.some((sample) => sample.id === sampleId)) return;
+  samples.push({ id: sampleId, minutes: actualMinutes });
+  history[leg.rideKey] = samples.slice(-MAX_RIDE_SAMPLES);
+  saveRideHistory(history);
+}
+
+function getRideHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(RIDE_HISTORY_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveRideHistory(history) {
+  try {
+    localStorage.setItem(RIDE_HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    // If storage is unavailable, the app still works with the fixed safeguards.
+  }
+}
+
+function percentile(sorted, ratio) {
+  if (!sorted.length) return null;
+  const index = (sorted.length - 1) * ratio;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
 }
 
 async function getRouteStops(company, route, direction) {
@@ -408,7 +485,9 @@ function renderLeg(leg, index) {
     index === 0 || leg.transferWaitMinutes === null
       ? ""
       : `，轉乘等候 ${leg.transferWaitMinutes} 分鐘`;
-  const rideText = leg.minRideMinutes ? `，最少 ${leg.minRideMinutes} 分鐘車程` : "";
+  const rideText = leg.learnedRideMinutes
+    ? `，學習車程約 ${leg.learnedRideMinutes} 分鐘`
+    : `，最少 ${leg.minRideMinutes} 分鐘車程`;
   return `
     <div class="leg">
       <div class="route-no">${escapeHtml(leg.route)}</div>
