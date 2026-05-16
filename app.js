@@ -16,7 +16,7 @@ const MIN_RIDE_MINUTES = {
   "49:valleyRoad:tkoTunnel": 15,
   "98:capitol:tkoTunnel": 7,
   "98:capitol:kwunTong": 13,
-  "98:tkoTunnel:beaumount": 10,
+  "98:tkoTunnel:beaumount": 8,
   "797:capitol:tkoTunnel": 8,
   "797:tkoTunnel:capitol": 8,
   "796X:tkoTunnel:hungFuk": 11,
@@ -299,7 +299,7 @@ function recordRideSample(leg) {
   const actualMinutes = Math.round((leg.arrivalTime - leg.boardTime) / 60000);
   if (!Number.isFinite(actualMinutes)) return;
   if (actualMinutes < Math.max(3, leg.baseMinRideMinutes - 3)) return;
-  if (actualMinutes > Math.max(60, leg.baseMinRideMinutes * 4)) return;
+  if (actualMinutes > getMaxRideSampleMinutes(leg)) return;
 
   const history = getRideHistory();
   const samples = history[leg.rideKey] || [];
@@ -308,6 +308,14 @@ function recordRideSample(leg) {
   samples.push({ id: sampleId, minutes: actualMinutes });
   history[leg.rideKey] = samples.slice(-MAX_RIDE_SAMPLES);
   saveRideHistory(history);
+}
+
+function getMaxRideSampleMinutes(leg) {
+  const strictCaps = {
+    "98:tkoTunnel:beaumount": 16,
+  };
+  if (strictCaps[leg.rideKey]) return strictCaps[leg.rideKey];
+  return Math.max(60, leg.baseMinRideMinutes * 4);
 }
 
 function getRideHistory() {

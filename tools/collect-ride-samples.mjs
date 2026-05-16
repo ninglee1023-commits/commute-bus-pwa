@@ -14,7 +14,7 @@ const MIN_RIDE_MINUTES = {
   "49:valleyRoad:tkoTunnel": 15,
   "98:capitol:tkoTunnel": 7,
   "98:capitol:kwunTong": 13,
-  "98:tkoTunnel:beaumount": 10,
+  "98:tkoTunnel:beaumount": 8,
   "797:capitol:tkoTunnel": 8,
   "797:tkoTunnel:capitol": 8,
   "796X:tkoTunnel:hungFuk": 11,
@@ -114,7 +114,7 @@ async function collectLeg(leg) {
     toIndex += 1;
     const minutes = Math.round((toEta.time - fromEta.time) / 60000);
     if (minutes < Math.max(3, segment.baseMinRideMinutes - 3)) continue;
-    if (minutes > Math.max(60, segment.baseMinRideMinutes * 4)) continue;
+    if (minutes > getMaxRideSampleMinutes(segment)) continue;
     samples.push({
       key: segment.rideKey,
       sample: {
@@ -125,6 +125,14 @@ async function collectLeg(leg) {
   }
 
   return samples;
+}
+
+function getMaxRideSampleMinutes(segment) {
+  const strictCaps = {
+    "98:tkoTunnel:beaumount": 16,
+  };
+  if (strictCaps[segment.rideKey]) return strictCaps[segment.rideKey];
+  return Math.max(60, segment.baseMinRideMinutes * 4);
 }
 
 async function resolveSegment(leg) {
