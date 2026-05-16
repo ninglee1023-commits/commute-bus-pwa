@@ -94,6 +94,7 @@ const COMMUTES = {
 };
 
 const cache = new Map();
+let rideDefaults = {};
 let activeMode = "work";
 let refreshSeq = 0;
 
@@ -109,7 +110,7 @@ document.querySelectorAll(".mode-button").forEach((button) => {
 });
 
 $("#refreshBtn").addEventListener("click", refresh);
-refresh();
+loadRideDefaults().finally(refresh);
 
 async function refresh() {
   const seq = ++refreshSeq;
@@ -279,7 +280,9 @@ function getLearnedRideMinutes(key) {
 }
 
 function getLearnedRideStats(key) {
-  const samples = (getRideHistory()[key] || []).map((sample) =>
+  const defaultSamples = rideDefaults[key] || [];
+  const localSamples = getRideHistory()[key] || [];
+  const samples = [...defaultSamples, ...localSamples].map((sample) =>
     typeof sample === "number" ? sample : sample.minutes,
   );
   const validSamples = samples.filter((sample) => Number.isFinite(sample));
@@ -320,6 +323,15 @@ function saveRideHistory(history) {
     localStorage.setItem(RIDE_HISTORY_KEY, JSON.stringify(history));
   } catch {
     // If storage is unavailable, the app still works with the fixed safeguards.
+  }
+}
+
+async function loadRideDefaults() {
+  try {
+    const payload = await fetchJson("./ride-defaults.json");
+    rideDefaults = payload.routes || {};
+  } catch {
+    rideDefaults = {};
   }
 }
 
