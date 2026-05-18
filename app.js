@@ -28,8 +28,8 @@ const MIN_RIDE_MINUTES = {
 };
 
 const ETA_PAIRING_MODE = {
-  "790:beaumount:hkPost": "headway",
-  "790:valleyRoad:capitol": "headway",
+  "790:beaumount:hkPost": "cumulative-only",
+  "790:valleyRoad:capitol": "cumulative-only",
 };
 
 const STOP_ALIASES = {
@@ -243,6 +243,7 @@ function findSegmentInStops(stops, fromKey, toKey, direction) {
 async function getLegCandidates(segment) {
   const cumulativeCandidates = await getCumulativeCandidates(segment);
   if (cumulativeCandidates.length) return cumulativeCandidates;
+  if (ETA_PAIRING_MODE[segment.rideKey] === "cumulative-only") return [];
 
   const [fromEtas, toEtas] = await Promise.all([
     getEta(segment.company, segment.route, segment.direction, segment.fromStop.id),

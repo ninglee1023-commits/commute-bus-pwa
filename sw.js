@@ -1,9 +1,9 @@
-const CACHE_NAME = "commute-bus-v5";
+const CACHE_NAME = "commute-bus-v6";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js",
+  "./app.js?v=20260518-790-cumulative",
   "./ride-defaults.json",
   "./manifest.webmanifest",
   "./icons/icon-192.svg",
