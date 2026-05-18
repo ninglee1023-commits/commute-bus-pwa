@@ -583,7 +583,7 @@ function renderLeg(leg, index) {
     ? `，推斷車程 ${leg.rideMinutes} 分鐘`
     : leg.learnedRideMinutes
     ? `，學習車程約 ${leg.learnedRideMinutes} 分鐘`
-    : `，最少 ${leg.minRideMinutes} 分鐘車程`;
+    : "，車程待推斷";
   return `
     <div class="leg">
       <div class="route-no">${escapeHtml(leg.route)}</div>
