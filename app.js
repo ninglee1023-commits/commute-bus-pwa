@@ -5,6 +5,7 @@ const FETCH_RETRIES = 2;
 const RIDE_HISTORY_KEY = "commute-bus-ride-history-v1";
 const MAX_RIDE_SAMPLES = 30;
 const MIN_LEARNED_SAMPLES = 5;
+const MAX_ADJACENT_RIDE_MINUTES = 25;
 
 const MIN_RIDE_MINUTES = {
   "790:beaumount:hkPost": 6,
@@ -230,6 +231,7 @@ function findSegmentInStops(stops, fromKey, toKey, direction) {
         direction,
         fromStop: stops[fromIndex],
         toStop: stops[toIndex],
+        segmentStops: stops.slice(fromIndex, toIndex + 1),
         stopGap: stops[toIndex].seq - stops[fromIndex].seq,
       });
       break;
@@ -239,6 +241,9 @@ function findSegmentInStops(stops, fromKey, toKey, direction) {
 }
 
 async function getLegCandidates(segment) {
+  const cumulativeCandidates = await getCumulativeCandidates(segment);
+  if (cumulativeCandidates.length) return cumulativeCandidates;
+
   const [fromEtas, toEtas] = await Promise.all([
     getEta(segment.company, segment.route, segment.direction, segment.fromStop.id),
     getEta(segment.company, segment.route, segment.direction, segment.toStop.id),
@@ -261,6 +266,43 @@ async function getLegCandidates(segment) {
         boardTime: fromEta.time,
         arrivalTime: toEta.time,
         minRideMinutes: segment.minRideMinutes,
+        rideMinutes: Math.round((toEta.time - fromEta.time) / 60000),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.boardTime - b.boardTime);
+}
+
+async function getCumulativeCandidates(segment) {
+  if (!segment.segmentStops || segment.segmentStops.length < 2) return [];
+
+  const etaByStop = await Promise.all(
+    segment.segmentStops.map((stop) => getEta(segment.company, segment.route, segment.direction, stop.id)),
+  );
+  if (etaByStop.some((etas) => !etas.length)) return [];
+
+  return etaByStop[0]
+    .map((fromEta) => {
+      let currentTime = fromEta.time;
+      const adjacentMinutes = [];
+
+      for (let stopIndex = 1; stopIndex < etaByStop.length; stopIndex += 1) {
+        const nextEta = etaByStop[stopIndex].find((eta) => eta.time > currentTime);
+        if (!nextEta) return null;
+
+        const rideMinutes = Math.round((nextEta.time - currentTime) / 60000);
+        if (rideMinutes < 1 || rideMinutes > MAX_ADJACENT_RIDE_MINUTES) return null;
+
+        adjacentMinutes.push(rideMinutes);
+        currentTime = nextEta.time;
+      }
+
+      return {
+        etaSeq: fromEta.seq,
+        boardTime: fromEta.time,
+        arrivalTime: currentTime,
+        minRideMinutes: segment.minRideMinutes,
+        rideMinutes: adjacentMinutes.reduce((total, minutes) => total + minutes, 0),
       };
     })
     .filter(Boolean)
@@ -281,6 +323,7 @@ function getHeadwayCandidates(segment, fromEtas, toEtas) {
       boardTime: fromEta.time,
       arrivalTime: toEta.time,
       minRideMinutes: segment.minRideMinutes,
+      rideMinutes,
     };
   })
     .filter(Boolean)
@@ -536,7 +579,9 @@ function renderLeg(leg, index) {
     index === 0 || leg.transferWaitMinutes === null
       ? ""
       : `，轉乘等候 ${leg.transferWaitMinutes} 分鐘`;
-  const rideText = leg.learnedRideMinutes
+  const rideText = leg.rideMinutes
+    ? `，推斷車程 ${leg.rideMinutes} 分鐘`
+    : leg.learnedRideMinutes
     ? `，學習車程約 ${leg.learnedRideMinutes} 分鐘`
     : `，最少 ${leg.minRideMinutes} 分鐘車程`;
   return `
