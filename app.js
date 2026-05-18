@@ -6,6 +6,7 @@ const RIDE_HISTORY_KEY = "commute-bus-ride-history-v1";
 const MAX_RIDE_SAMPLES = 30;
 const MIN_LEARNED_SAMPLES = 5;
 const MAX_ADJACENT_RIDE_MINUTES = 25;
+const ETA_EXTENSION_COUNT = 2;
 
 const MIN_RIDE_MINUTES = {
   "790:beaumount:hkPost": 6,
@@ -245,10 +246,12 @@ async function getLegCandidates(segment) {
   if (cumulativeCandidates.length) return cumulativeCandidates;
   if (ETA_PAIRING_MODE[segment.rideKey] === "cumulative-only") return [];
 
-  const [fromEtas, toEtas] = await Promise.all([
+  let [fromEtas, toEtas] = await Promise.all([
     getEta(segment.company, segment.route, segment.direction, segment.fromStop.id),
     getEta(segment.company, segment.route, segment.direction, segment.toStop.id),
   ]);
+  fromEtas = extendEtas(fromEtas);
+  toEtas = extendEtas(toEtas);
 
   if (ETA_PAIRING_MODE[segment.rideKey] === "headway") {
     return getHeadwayCandidates(segment, fromEtas, toEtas);
@@ -268,6 +271,7 @@ async function getLegCandidates(segment) {
         arrivalTime: toEta.time,
         minRideMinutes: segment.minRideMinutes,
         rideMinutes: Math.round((toEta.time - fromEta.time) / 60000),
+        isEstimated: fromEta.isEstimated || toEta.isEstimated,
       };
     })
     .filter(Boolean)
@@ -281,14 +285,16 @@ async function getCumulativeCandidates(segment) {
     segment.segmentStops.map((stop) => getEta(segment.company, segment.route, segment.direction, stop.id)),
   );
   if (etaByStop.some((etas) => !etas.length)) return [];
+  const extendedEtaByStop = etaByStop.map((etas) => extendEtas(etas));
 
-  return etaByStop[0]
+  return extendedEtaByStop[0]
     .map((fromEta) => {
       let currentTime = fromEta.time;
       const adjacentMinutes = [];
+      let isEstimated = Boolean(fromEta.isEstimated);
 
-      for (let stopIndex = 1; stopIndex < etaByStop.length; stopIndex += 1) {
-        const nextEta = etaByStop[stopIndex].find((eta) => eta.time > currentTime);
+      for (let stopIndex = 1; stopIndex < extendedEtaByStop.length; stopIndex += 1) {
+        const nextEta = extendedEtaByStop[stopIndex].find((eta) => eta.time > currentTime);
         if (!nextEta) return null;
 
         const rideMinutes = Math.round((nextEta.time - currentTime) / 60000);
@@ -296,6 +302,7 @@ async function getCumulativeCandidates(segment) {
 
         adjacentMinutes.push(rideMinutes);
         currentTime = nextEta.time;
+        isEstimated = isEstimated || Boolean(nextEta.isEstimated);
       }
 
       return {
@@ -304,6 +311,7 @@ async function getCumulativeCandidates(segment) {
         arrivalTime: currentTime,
         minRideMinutes: segment.minRideMinutes,
         rideMinutes: adjacentMinutes.reduce((total, minutes) => total + minutes, 0),
+        isEstimated,
       };
     })
     .filter(Boolean)
@@ -311,6 +319,8 @@ async function getCumulativeCandidates(segment) {
 }
 
 function getHeadwayCandidates(segment, fromEtas, toEtas) {
+  fromEtas = extendEtas(fromEtas);
+  toEtas = extendEtas(toEtas);
   let toIndex = 0;
   return fromEtas.map((fromEta) => {
     while (toIndex < toEtas.length && toEtas[toIndex].time <= fromEta.time) toIndex += 1;
@@ -325,10 +335,34 @@ function getHeadwayCandidates(segment, fromEtas, toEtas) {
       arrivalTime: toEta.time,
       minRideMinutes: segment.minRideMinutes,
       rideMinutes,
+      isEstimated: fromEta.isEstimated || toEta.isEstimated,
     };
   })
     .filter(Boolean)
     .sort((a, b) => a.boardTime - b.boardTime);
+}
+
+function extendEtas(etas) {
+  if (etas.length < 2) return etas;
+  const gaps = [];
+  for (let index = 1; index < etas.length; index += 1) {
+    const gapMinutes = Math.round((etas[index].time - etas[index - 1].time) / 60000);
+    if (gapMinutes >= 3 && gapMinutes <= 45) gaps.push(gapMinutes);
+  }
+  if (!gaps.length) return etas;
+
+  const headwayMinutes = Math.round(percentile(gaps.sort((a, b) => a - b), 0.5));
+  const extended = [...etas];
+  for (let index = 0; index < ETA_EXTENSION_COUNT; index += 1) {
+    const last = extended.at(-1);
+    extended.push({
+      ...last,
+      seq: last.seq + 1,
+      time: new Date(last.time.getTime() + headwayMinutes * 60000),
+      isEstimated: true,
+    });
+  }
+  return extended;
 }
 
 function getRideKey(leg) {
@@ -591,7 +625,7 @@ function renderLeg(leg, index) {
       <div>
         ${escapeHtml(leg.fromStop.nameTc)} → ${escapeHtml(leg.toStop.nameTc)}
         <br />
-        ${formatClock(leg.boardTime)} 上車，${formatClock(leg.arrivalTime)} 到${transferText}${waitText}${rideText}
+        ${formatClock(leg.boardTime)} 上車，${formatClock(leg.arrivalTime)} 到${leg.isEstimated ? "，含班距估算" : ""}${transferText}${waitText}${rideText}
       </div>
     </div>
   `;
