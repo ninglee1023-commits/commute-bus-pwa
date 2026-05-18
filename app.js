@@ -6,7 +6,7 @@ const RIDE_HISTORY_KEY = "commute-bus-ride-history-v1";
 const MAX_RIDE_SAMPLES = 30;
 const MIN_LEARNED_SAMPLES = 5;
 const MAX_ADJACENT_RIDE_MINUTES = 25;
-const ETA_EXTENSION_COUNT = 2;
+const ETA_EXTENSION_COUNT = 4;
 
 const MIN_RIDE_MINUTES = {
   "790:beaumount:hkPost": 6,
