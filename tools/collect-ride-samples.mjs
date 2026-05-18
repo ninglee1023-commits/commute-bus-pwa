@@ -5,7 +5,7 @@ const FETCH_TIMEOUT_MS = 12000;
 const MAX_RIDE_SAMPLES = 30;
 
 const MIN_RIDE_MINUTES = {
-  "790:beaumount:hkPost": 20,
+  "790:beaumount:hkPost": 6,
   "790:valleyRoad:capitol": 18,
   "795X:valleyRoad:tkoTunnel": 9,
   "796P:valleyRoad:tkoTunnel": 8,
@@ -158,7 +158,7 @@ function collectHeadwayLeg(segment, fromEtas, toEtas) {
 
 function getMaxRideSampleMinutes(segment) {
   const strictCaps = {
-    "790:beaumount:hkPost": 30,
+    "790:beaumount:hkPost": 20,
     "790:valleyRoad:capitol": 30,
     "98:tkoTunnel:beaumount": 16,
   };

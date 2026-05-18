@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-16T07:11:20.610Z",
+  "updatedAt": "2026-05-18T00:53:35.695Z",
   "routes": {
     "11X:kaiFukTunnel:hungFuk": [
       {
@@ -673,12 +673,6 @@
       {
         "id": "2026-05-16T07:50:07.000Z|2026-05-16T08:07:26.000Z",
         "minutes": 17
-      }
-    ],
-    "790:beaumount:hkPost": [
-      {
-        "id": "2026-05-16T07:27:00.000Z|2026-05-16T07:45:05.000Z",
-        "minutes": 18
       }
     ],
     "790:valleyRoad:capitol": [

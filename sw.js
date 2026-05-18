@@ -1,4 +1,4 @@
-const CACHE_NAME = "commute-bus-v3";
+const CACHE_NAME = "commute-bus-v4";
 const APP_ASSETS = [
   "./",
   "./index.html",
