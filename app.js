@@ -1,4 +1,5 @@
 const TRANSFER_BUFFER_MS = 2 * 60 * 1000;
+const APP_VERSION = "20260518-cache-visible";
 const DEFAULT_MIN_RIDE_MINUTES = 6;
 const FETCH_TIMEOUT_MS = 12000;
 const FETCH_RETRIES = 2;
@@ -125,7 +126,7 @@ async function refresh() {
   const refreshBtn = $("#refreshBtn");
   refreshBtn.disabled = true;
   refreshBtn.textContent = "更新中";
-  $("#subtitle").textContent = COMMUTES[mode].title;
+  $("#subtitle").textContent = `${COMMUTES[mode].title} · ${APP_VERSION}`;
   setSummary("正在讀取實時 ETA...", "會自動重試短暫失敗的官方資料。");
   $("#results").innerHTML = "";
 
