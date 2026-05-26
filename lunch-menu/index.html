@@ -4,8 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AISG Lunch Picker</title>
-    <meta name="theme-color" content="#17464c">
-    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -87,7 +85,7 @@
           <div class="meal-meta">
             <span class="day-pill"></span>
             <span class="set-pill"></span>
-            <button class="voice-button" type="button" title="Read English and Chinese">
+            <button class="voice-button" type="button" title="Read English and Putonghua">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 9v6h4l5 4V5L8 9H4Z"></path>
                 <path d="M16.5 8.5a5 5 0 0 1 0 7"></path>
@@ -105,12 +103,5 @@
     </template>
 
     <script src="app.js"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("./sw.js").catch(() => {});
-        });
-      }
-    </script>
   </body>
 </html>

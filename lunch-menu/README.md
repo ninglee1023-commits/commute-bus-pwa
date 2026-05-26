@@ -27,9 +27,9 @@ http://127.0.0.1:8081/
 
 ## Voice Reading
 
-Each lunch card has a speaker button. It uses the browser's built-in Web Speech API, so there is no API key and no server cost. The button reads the English lunch details first, then the Chinese details.
+Each lunch card has a speaker button. It uses the browser's built-in Web Speech API, so there is no API key and no server cost. The button reads the English lunch details first, then the Putonghua details.
 
-Speech quality depends on the device browser and installed voices. iPhone, iPad, Chrome, Edge, and Safari usually work after the first tap.
+Speech quality depends on the device browser and installed voices. iPhone, iPad, Chrome, Edge, and Safari usually work after the first tap. For Chinese, the app asks for a `zh-CN` or Mandarin/Putonghua voice.
 
 ## Online Hosting
 

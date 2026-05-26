@@ -261,6 +261,15 @@ function buildMealSpeech(item) {
   };
 }
 
+function pickPutonghuaVoice() {
+  if (!speechSupported()) return null;
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find((voice) => voice.lang === "zh-CN")
+    || voices.find((voice) => voice.lang?.toLowerCase().startsWith("zh-cn"))
+    || voices.find((voice) => /putonghua|mandarin|普通话|普通話|国语|國語/i.test(voice.name))
+    || voices.find((voice) => voice.lang?.toLowerCase().startsWith("zh"));
+}
+
 function speakMeal(item) {
   if (!speechSupported()) {
     window.alert("Voice reading is not supported in this browser.");
@@ -281,7 +290,9 @@ function speakMeal(item) {
   english.rate = 0.92;
 
   const chinese = new SpeechSynthesisUtterance(speech.chinese);
-  chinese.lang = "zh-HK";
+  const putonghuaVoice = pickPutonghuaVoice();
+  if (putonghuaVoice) chinese.voice = putonghuaVoice;
+  chinese.lang = putonghuaVoice?.lang || "zh-CN";
   chinese.rate = 0.86;
 
   const clearSpeakingState = () => {
@@ -457,7 +468,7 @@ function makeMealCard(item, mode) {
   dayPill.textContent = item.day;
   setPill.textContent = item.set;
   setPill.classList.add(item.set.toLowerCase());
-  voiceButton.setAttribute("aria-label", `Read ${item.title} in English and Chinese`);
+  voiceButton.setAttribute("aria-label", `Read ${item.title} in English and Putonghua`);
   voiceButton.setAttribute("aria-pressed", String(speakingMealId === item.id));
   voiceButton.classList.toggle("is-speaking", speakingMealId === item.id);
   title.textContent = item.title;
