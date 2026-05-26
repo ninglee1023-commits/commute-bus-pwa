@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AISG Lunch Picker</title>
+    <meta name="theme-color" content="#17464c">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Week 4 · Er Sha · May 25-29, 2026</p>
+          <h1>AISG Lunch Picker</h1>
+        </div>
+        <div class="toolbar" aria-label="App actions">
+          <button class="ghost-button" id="copySummary" type="button">Copy result</button>
+          <button class="ghost-button" id="printPage" type="button">Print</button>
+          <button class="danger-button" id="resetWeek" type="button">Reset</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="control-band" aria-label="Chooser controls">
+          <div class="child-fields">
+            <label>
+              <span>Child 1</span>
+              <input id="childOneName" type="text" autocomplete="off" value="Luca">
+            </label>
+            <label>
+              <span>Child 2</span>
+              <input id="childTwoName" type="text" autocomplete="off" value="Noah">
+            </label>
+          </div>
+
+          <div class="segmented" role="tablist" aria-label="Current view">
+            <button class="segment active" type="button" data-view="kid1" role="tab" aria-selected="true">Child 1</button>
+            <button class="segment" type="button" data-view="kid2" role="tab" aria-selected="false">Child 2</button>
+            <button class="segment" type="button" data-view="results" role="tab" aria-selected="false">Results</button>
+          </div>
+        </section>
+
+        <section class="status-band" aria-live="polite">
+          <div>
+            <p class="mode-label" id="modeLabel">Child 1 choices</p>
+            <h2 id="modeTitle">Select every lunch Child 1 would enjoy.</h2>
+          </div>
+          <div class="score-strip" id="scoreStrip"></div>
+        </section>
+
+        <section class="menu-layout" id="menuLayout" aria-label="Lunch choices"></section>
+
+        <section class="results-layout hidden" id="resultsLayout" aria-label="Shared lunch choices">
+          <div class="results-main">
+            <div class="section-heading">
+              <p class="mode-label">Both kids like</p>
+              <h2 id="matchCount">No shared choices yet</h2>
+            </div>
+            <div class="results-grid" id="matchGrid"></div>
+          </div>
+          <aside class="decision-panel">
+            <p class="mode-label">Parent pick</p>
+            <h2 id="parentPickTitle">No final choice selected</h2>
+            <p id="parentPickMeta">Choose one matching lunch card when both children have finished.</p>
+            <div class="divider"></div>
+            <p class="mode-label">Only one child selected</p>
+            <div class="solo-list" id="soloList"></div>
+          </aside>
+        </section>
+
+        <details class="menu-reference">
+          <summary>Original menu image</summary>
+          <img src="assets/source/original-menu.jpg" alt="Original AISG lunch menu for Week 4 Er Sha, May 2026">
+        </details>
+      </main>
+    </div>
+
+    <template id="mealCardTemplate">
+      <article class="meal-card">
+        <button class="image-button" type="button">
+          <img alt="">
+          <span class="selected-mark" aria-hidden="true">Selected</span>
+        </button>
+        <div class="meal-body">
+          <div class="meal-meta">
+            <span class="day-pill"></span>
+            <span class="set-pill"></span>
+            <button class="voice-button" type="button" title="Read English and Chinese">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9v6h4l5 4V5L8 9H4Z"></path>
+                <path d="M16.5 8.5a5 5 0 0 1 0 7"></path>
+                <path d="M18.8 6.2a8.3 8.3 0 0 1 0 11.6"></path>
+              </svg>
+            </button>
+          </div>
+          <h3></h3>
+          <p class="chinese-title"></p>
+          <ul class="item-list"></ul>
+          <div class="nutrition"></div>
+          <div class="allergy"></div>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
