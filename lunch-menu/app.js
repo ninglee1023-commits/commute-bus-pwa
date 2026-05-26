@@ -198,6 +198,17 @@ const defaultState = {
 let state = loadState();
 let speakingMealId = null;
 
+function cleanupLunchServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.getRegistrations?.().then((registrations) => {
+    registrations.forEach((registration) => {
+      if (registration.scope.includes("/lunch-menu/")) {
+        registration.unregister();
+      }
+    });
+  }).catch(() => {});
+}
+
 const elements = {
   menuLayout: document.querySelector("#menuLayout"),
   resultsLayout: document.querySelector("#resultsLayout"),
@@ -660,4 +671,5 @@ window.addEventListener("pagehide", () => {
   if (speechSupported()) window.speechSynthesis.cancel();
 });
 
+cleanupLunchServiceWorker();
 render();
