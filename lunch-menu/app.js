@@ -236,6 +236,7 @@ function loadState() {
       ...structuredClone(defaultState),
       ...stored,
       names: { ...defaultState.names, ...stored.names },
+      parentPick: normalizeParentPick(stored.parentPick),
       picks: {
         kid1: Array.isArray(stored.picks?.kid1) ? stored.picks.kid1 : [],
         kid2: Array.isArray(stored.picks?.kid2) ? stored.picks.kid2 : []
@@ -252,6 +253,45 @@ function saveState() {
 
 function mealById(id) {
   return MENU_ITEMS.find((item) => item.id === id);
+}
+
+function normalizeParentPick(value) {
+  if (!value) return null;
+  const key = String(value);
+  if (key.includes(":")) return key;
+  return mealById(key) ? `exact:${key}` : null;
+}
+
+function getMatchKey(match) {
+  return match.type === "exact" ? `exact:${match.item.id}` : `same-day:${match.kid1.id}:${match.kid2.id}`;
+}
+
+function describeMatch(match) {
+  if (!match) return "Not selected";
+  if (match.type === "exact") {
+    return `${match.day} ${match.date}: both chose ${match.item.title} (${match.item.set})`;
+  }
+  return `${match.day} ${match.date}: ${state.names.kid1} - ${match.kid1.title} (${match.kid1.set}); ${state.names.kid2} - ${match.kid2.title} (${match.kid2.set})`;
+}
+
+function getParentPickMatch(matches = getMatches()) {
+  const key = normalizeParentPick(state.parentPick);
+  if (!key) return null;
+  return matches.find((match) => getMatchKey(match) === key) || null;
+}
+
+function getMatchedPickIds(matches) {
+  const matched = { kid1: new Set(), kid2: new Set() };
+  matches.forEach((match) => {
+    if (match.type === "exact") {
+      matched.kid1.add(match.item.id);
+      matched.kid2.add(match.item.id);
+    } else {
+      matched.kid1.add(match.kid1.id);
+      matched.kid2.add(match.kid2.id);
+    }
+  });
+  return matched;
 }
 
 function speechSupported() {
@@ -323,8 +363,37 @@ function speakMeal(item) {
 }
 
 function getMatches() {
-  const kidOne = new Set(state.picks.kid1);
-  return MENU_ITEMS.filter((item) => kidOne.has(item.id) && state.picks.kid2.includes(item.id));
+  const kidOneItems = state.picks.kid1.map(mealById).filter(Boolean);
+  const kidTwoItems = state.picks.kid2.map(mealById).filter(Boolean);
+  const matches = [];
+  const seen = new Set();
+
+  kidOneItems.forEach((kidOneItem) => {
+    kidTwoItems.forEach((kidTwoItem) => {
+      if (kidOneItem.date !== kidTwoItem.date) return;
+
+      const match = kidOneItem.id === kidTwoItem.id
+        ? {
+            type: "exact",
+            day: kidOneItem.day,
+            date: kidOneItem.date,
+            item: kidOneItem
+          }
+        : {
+            type: "same-day",
+            day: kidOneItem.day,
+            date: kidOneItem.date,
+            kid1: kidOneItem,
+            kid2: kidTwoItem
+          };
+      const key = getMatchKey(match);
+      if (seen.has(key)) return;
+      seen.add(key);
+      matches.push(match);
+    });
+  });
+
+  return matches;
 }
 
 function currentKidKey() {
@@ -346,15 +415,20 @@ function togglePick(itemId) {
     picks.add(itemId);
   }
   state.picks[kid] = MENU_ITEMS.filter((item) => picks.has(item.id)).map((item) => item.id);
-  if (state.parentPick && !getMatches().some((item) => item.id === state.parentPick)) {
+  const matchKeys = new Set(getMatches().map(getMatchKey));
+  const parentPickKey = normalizeParentPick(state.parentPick);
+  if (parentPickKey && !matchKeys.has(parentPickKey)) {
     state.parentPick = null;
+  } else {
+    state.parentPick = parentPickKey;
   }
   saveState();
   render();
 }
 
-function setParentPick(itemId) {
-  state.parentPick = state.parentPick === itemId ? null : itemId;
+function setParentPick(matchKey) {
+  const normalizedKey = normalizeParentPick(matchKey);
+  state.parentPick = normalizeParentPick(state.parentPick) === normalizedKey ? null : normalizedKey;
   saveState();
   render();
 }
@@ -371,7 +445,7 @@ function render() {
 
   if (isResults) {
     elements.modeLabel.textContent = "Final decision";
-    elements.modeTitle.textContent = "Choose from the lunches both children selected.";
+    elements.modeTitle.textContent = "Choose from exact same-set matches or same-day matches.";
     renderResults();
   } else {
     const kid = currentKidKey();
@@ -405,7 +479,7 @@ function renderScores() {
   elements.scoreStrip.replaceChildren(
     makeScore(state.picks.kid1.length, state.names.kid1),
     makeScore(state.picks.kid2.length, state.names.kid2),
-    makeScore(matches.length, "Shared")
+    makeScore(matches.length, "Orderable")
   );
 }
 
@@ -448,9 +522,10 @@ function makeDayHeader(day, date) {
 function makeMealCard(item, mode) {
   const node = elements.template.content.firstElementChild.cloneNode(true);
   const isPicker = mode === "picker";
+  const selectionKey = `exact:${item.id}`;
   const selected = isPicker
     ? state.picks[currentKidKey()].includes(item.id)
-    : state.parentPick === item.id;
+    : normalizeParentPick(state.parentPick) === selectionKey;
 
   node.dataset.id = item.id;
   node.classList.toggle("is-selected", isPicker && selected);
@@ -507,7 +582,7 @@ function makeMealCard(item, mode) {
     if (isPicker) {
       togglePick(item.id);
     } else {
-      setParentPick(item.id);
+      setParentPick(selectionKey);
     }
   });
   voiceButton.addEventListener("click", (event) => {
@@ -521,46 +596,135 @@ function makeMealCard(item, mode) {
   return node;
 }
 
+function makeMatchCard(match) {
+  if (match.type === "exact") return makeMealCard(match.item, "results");
+
+  const key = getMatchKey(match);
+  const selected = normalizeParentPick(state.parentPick) === key;
+  const node = document.createElement("article");
+  node.className = "meal-card match-card same-day-match";
+  node.classList.toggle("is-parent-pick", selected);
+
+  const button = document.createElement("button");
+  button.className = "match-pick-button";
+  button.type = "button";
+  button.setAttribute("aria-pressed", String(selected));
+  button.setAttribute("aria-label", `Choose ${match.day} same-day match as final lunch`);
+
+  const selectedMark = document.createElement("span");
+  selectedMark.className = "selected-mark";
+  selectedMark.setAttribute("aria-hidden", "true");
+  selectedMark.textContent = "Final pick";
+
+  const summary = document.createElement("div");
+  summary.className = "match-summary";
+
+  const meta = document.createElement("div");
+  meta.className = "meal-meta";
+  const dayPill = document.createElement("span");
+  dayPill.className = "day-pill";
+  dayPill.textContent = match.day;
+  const setPill = document.createElement("span");
+  setPill.className = "set-pill festival";
+  setPill.textContent = "Same day";
+  meta.append(dayPill, setPill);
+
+  const title = document.createElement("h3");
+  title.textContent = `${match.day} lunch match`;
+  const detail = document.createElement("p");
+  detail.className = "match-detail";
+  detail.textContent = `${match.date} - order one set for each child.`;
+
+  const pairGrid = document.createElement("div");
+  pairGrid.className = "match-pair-grid";
+  pairGrid.append(
+    makePairChoice(state.names.kid1, match.kid1),
+    makePairChoice(state.names.kid2, match.kid2)
+  );
+
+  summary.append(meta, title, detail);
+  button.append(selectedMark, summary, pairGrid);
+  button.addEventListener("click", () => setParentPick(key));
+  node.append(button);
+  return node;
+}
+
+function makePairChoice(childName, item) {
+  const node = document.createElement("div");
+  node.className = "match-choice";
+
+  const image = document.createElement("img");
+  image.src = item.image;
+  image.alt = `${item.title} lunch set`;
+
+  const child = document.createElement("span");
+  child.className = "match-child";
+  child.textContent = childName;
+
+  const title = document.createElement("strong");
+  title.textContent = item.title;
+
+  const meta = document.createElement("span");
+  meta.className = "match-choice-meta";
+  meta.textContent = item.set;
+
+  node.append(image, child, title, meta);
+  return node;
+}
+
 function renderResults() {
   const matches = getMatches();
-  const matchIds = new Set(matches.map((item) => item.id));
-  if (state.parentPick && !matchIds.has(state.parentPick)) {
+  const matchKeys = new Set(matches.map(getMatchKey));
+  const parentPickKey = normalizeParentPick(state.parentPick);
+  if (parentPickKey && !matchKeys.has(parentPickKey)) {
     state.parentPick = null;
     saveState();
+  } else {
+    state.parentPick = parentPickKey;
   }
 
   elements.matchGrid.replaceChildren();
   elements.soloList.replaceChildren();
   elements.matchCount.textContent = matches.length === 1
-    ? "1 shared lunch choice"
-    : `${matches.length} shared lunch choices`;
+    ? "1 orderable match"
+    : `${matches.length} orderable matches`;
 
   if (matches.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "No overlap yet. Switch back to each child and add more lunches they would accept.";
+    empty.textContent = "No exact same-set or same-day match yet. Switch back to each child and add more lunches they would accept.";
     elements.matchGrid.append(empty);
   } else {
-    matches.forEach((item) => elements.matchGrid.append(makeMealCard(item, "results")));
+    matches.forEach((match) => elements.matchGrid.append(makeMatchCard(match)));
   }
 
-  const parentPick = mealById(state.parentPick);
+  const parentPick = getParentPickMatch(matches);
   if (parentPick) {
-    elements.parentPickTitle.textContent = parentPick.title;
-    elements.parentPickMeta.textContent = `${parentPick.day}, ${parentPick.date} · ${parentPick.set}`;
+    elements.parentPickTitle.textContent = parentPick.type === "exact"
+      ? parentPick.item.title
+      : `${parentPick.day} lunch match`;
+    elements.parentPickMeta.textContent = describeMatch(parentPick);
   } else {
     elements.parentPickTitle.textContent = "No final choice selected";
-    elements.parentPickMeta.textContent = "Choose one matching lunch card when both children have finished.";
+    elements.parentPickMeta.textContent = "Choose one exact or same-day match when both children have finished.";
   }
 
-  renderSoloList(matchIds);
+  renderSoloList(matches);
 }
 
-function renderSoloList(matchIds) {
-  const solo = MENU_ITEMS.filter((item) => {
+function renderSoloList(matches) {
+  const matched = getMatchedPickIds(matches);
+  const solo = [];
+
+  MENU_ITEMS.forEach((item) => {
     const inKid1 = state.picks.kid1.includes(item.id);
     const inKid2 = state.picks.kid2.includes(item.id);
-    return (inKid1 || inKid2) && !matchIds.has(item.id);
+    if (inKid1 && !matched.kid1.has(item.id)) {
+      solo.push({ item, owner: state.names.kid1 });
+    }
+    if (inKid2 && !matched.kid2.has(item.id)) {
+      solo.push({ item, owner: state.names.kid2 });
+    }
   });
 
   if (solo.length === 0) {
@@ -570,10 +734,9 @@ function renderSoloList(matchIds) {
     return;
   }
 
-  solo.forEach((item) => {
+  solo.forEach(({ item, owner }) => {
     const node = document.createElement("div");
     node.className = "solo-item";
-    const owner = state.picks.kid1.includes(item.id) ? state.names.kid1 : state.names.kid2;
     const title = document.createElement("strong");
     title.textContent = item.title;
     const meta = document.createElement("span");
@@ -590,20 +753,20 @@ function buildSummary() {
     `${state.names.kid1}: ${state.picks.kid1.length} choices`,
     `${state.names.kid2}: ${state.picks.kid2.length} choices`,
     "",
-    "Both kids like:"
+    "Orderable matches:"
   ];
 
   if (matches.length === 0) {
     lines.push("None yet");
   } else {
-    matches.forEach((item) => {
-      lines.push(`- ${item.day} ${item.date}: ${item.title} (${item.set})`);
+    matches.forEach((match) => {
+      lines.push(`- ${describeMatch(match)}`);
     });
   }
 
-  const parentPick = mealById(state.parentPick);
+  const parentPick = getParentPickMatch(matches);
   lines.push("", "Parent pick:");
-  lines.push(parentPick ? `${parentPick.day} ${parentPick.date}: ${parentPick.title} (${parentPick.set})` : "Not selected");
+  lines.push(parentPick ? describeMatch(parentPick) : "Not selected");
 
   return lines.join("\n");
 }

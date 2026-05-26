@@ -40,6 +40,6 @@ For your current workflow, static hosting is enough:
 - Your wife opens one URL on her phone or tablet.
 - Luca chooses on the Luca tab.
 - Noah chooses on the Noah tab.
-- The Results tab shows the shared options for the parent decision.
+- The Results tab shows orderable matches for the parent decision. A match can be the exact same set, or different sets that are available on the same day.
 
 Important: choices are stored in that browser only. If you want Luca and Noah to choose on different devices and have results sync automatically, the app needs a small backend database.
